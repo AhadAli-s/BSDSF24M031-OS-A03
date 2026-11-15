@@ -5,10 +5,22 @@ int main() {
     char** arglist;
 
     while ((cmdline = read_cmd(PROMPT, stdin)) != NULL) {
+        if (cmdline[0] == '!') {
+            char* expanded = hist_expand(cmdline);
+            free(cmdline);
+            if (expanded == NULL) {
+                continue;
+            }
+            cmdline = expanded;
+            printf("%s\n", cmdline);
+        }
+
         if ((arglist = tokenize(cmdline)) != NULL) {
-	    if (handle_builtin(arglist) == 0) {
- 		execute(arglist);
-	    }
+            hist_add(cmdline);
+
+            if (handle_builtin(arglist) == 0) {
+                execute(arglist);
+            }
 
             // Free the memory allocated by tokenize()
             for (int i = 0; arglist[i] != NULL; i++) {

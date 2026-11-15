@@ -60,6 +60,41 @@ char** tokenize(char* cmdline) {
     arglist[argnum] = NULL;
     return arglist;
 }
+static char* hist_buf[HISTORY_SIZE];
+static int hist_count = 0;
+
+void hist_add(const char* cmdline) {
+    if (hist_count == HISTORY_SIZE) {
+        free(hist_buf[0]);
+        for (int i = 1; i < HISTORY_SIZE; i++) {
+            hist_buf[i - 1] = hist_buf[i];
+        }
+        hist_count--;
+    }
+    hist_buf[hist_count++] = strdup(cmdline);
+}
+
+void hist_print(void) {
+    for (int i = 0; i < hist_count; i++) {
+        printf("%d  %s\n", i + 1, hist_buf[i]);
+    }
+}
+
+char* hist_expand(const char* cmdline) {
+    char* end;
+    long n = strtol(cmdline + 1, &end, 10);
+
+    if (end == cmdline + 1 || *end != '\0') {
+        fprintf(stderr, "%s: invalid history reference\n", cmdline);
+        return NULL;
+    }
+    if (n < 1 || n > hist_count) {
+        fprintf(stderr, "!%ld: event not found\n", n);
+        return NULL;
+    }
+    return strdup(hist_buf[n - 1]);
+}
+
 int handle_builtin(char** arglist) {
     if (strcmp(arglist[0], "exit") == 0) {
         printf("Shell exited.\n");
@@ -74,12 +109,17 @@ int handle_builtin(char** arglist) {
         }
         return 1;
     }
+    if (strcmp(arglist[0], "history") == 0) {
+        hist_print();
+        return 1;
+    }
 
     if (strcmp(arglist[0], "help") == 0) {
         printf("Built-in commands:\n");
         printf("  exit        Close the shell\n");
         printf("  cd <dir>    Change the working directory\n");
         printf("  help        Show this message\n");
+        printf("  history     Show the command history\n");
         printf("  jobs        Show background jobs (not implemented yet)\n");
         return 1;
     }

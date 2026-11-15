@@ -13,11 +13,15 @@
 #define MAXARGS 10
 #define ARGLEN 30
 #define PROMPT "FCIT> "
+#define HISTORY_SIZE 20
 
 // Function prototypes
 char* read_cmd(char* prompt, FILE* fp);
 char** tokenize(char* cmdline);
 int handle_builtin(char** arglist);
 int execute(char** arglist);
+void hist_add(const char* cmdline);
+void hist_print(void);
+char* hist_expand(const char* cmdline);
 
 #endif // SHELL_H
