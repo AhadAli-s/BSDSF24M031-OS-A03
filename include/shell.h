@@ -23,5 +23,6 @@ int execute(char** arglist);
 void hist_add(const char* cmdline);
 void hist_print(void);
 char* hist_expand(const char* cmdline);
+void init_readline(void);
 
 #endif // SHELL_H

@@ -1,4 +1,7 @@
 #include "shell.h"
+#include <readline/readline.h>
+#include <readline/history.h>
+
 
 char* read_cmd(char* prompt, FILE* fp) {
     printf("%s", prompt);
@@ -130,4 +133,34 @@ int handle_builtin(char** arglist) {
     }
 
     return 0;
+}
+static char* builtin_names[] = {"exit", "cd", "help", "jobs", "history", NULL};
+
+static char* builtin_generator(const char* text, int state) {
+    static int index;
+    static size_t len;
+
+    if (state == 0) {
+        index = 0;
+        len = strlen(text);
+    }
+    while (builtin_names[index] != NULL) {
+        char* name = builtin_names[index++];
+        if (strncmp(name, text, len) == 0) {
+            return strdup(name);
+        }
+    }
+    return NULL;
+}
+
+static char** shell_completion(const char* text, int start, int end) {
+    (void)end;
+    if (start == 0) {
+        return rl_completion_matches(text, builtin_generator);
+    }
+    return NULL;
+}
+
+void init_readline(void) {
+    rl_attempted_completion_function = shell_completion;
 }
