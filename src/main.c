@@ -23,8 +23,13 @@ int main() {
             hist_add(cmdline);
             add_history(cmdline);
 
-            if (handle_builtin(arglist) == 0) {
-                execute(arglist);
+            command_t cmds[MAX_CMDS];
+            int ncmds = parse_pipeline(arglist, cmds);
+
+            if (ncmds > 0) {
+                if (ncmds > 1 || handle_builtin(cmds[0].argv) == 0) {
+                    execute_pipeline(cmds, ncmds);
+                }
             }
 
             // Free the memory allocated by tokenize()
