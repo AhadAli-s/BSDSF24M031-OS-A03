@@ -43,11 +43,28 @@ char** tokenize(char* cmdline) {
         while (*cp == ' ' || *cp == '\t') cp++; // Skip leading whitespace
         
         if (*cp == '\0') break; // Line was only whitespace
-
-        start = cp;
-        len = 1;
-        while (*++cp != '\0' && !(*cp == ' ' || *cp == '\t')) {
-            len++;
+        if (*cp == '<' || *cp == '>' || *cp == '|') {
+            start = cp;
+            len = 1;
+            cp++;
+        } else if (*cp == '"' || *cp == '\'') {
+            char quote = *cp++;
+            start = cp;
+            len = 0;
+            while (*cp != '\0' && *cp != quote) {
+                cp++;
+                len++;
+            }
+            if (*cp == quote) {
+                cp++;
+            }
+        } else {
+            start = cp;
+            len = 1;
+            while (*++cp != '\0' && !(*cp == ' ' || *cp == '\t' ||
+                   *cp == '<' || *cp == '>' || *cp == '|')) {
+                len++;
+            }
         }
         strncpy(arglist[argnum], start, len);
         arglist[argnum][len] = '\0';
@@ -163,4 +180,46 @@ static char** shell_completion(const char* text, int start, int end) {
 
 void init_readline(void) {
     rl_attempted_completion_function = shell_completion;
+}
+static int is_operator(const char* tok) {
+    return strcmp(tok, "<") == 0 || strcmp(tok, ">") == 0 || strcmp(tok, "|") == 0;
+}
+
+int parse_pipeline(char** arglist, command_t* cmds) {
+    int n = 0;
+    int argc = 0;
+    memset(&cmds[0], 0, sizeof(command_t));
+
+    for (int i = 0; arglist[i] != NULL; i++) {
+        if (strcmp(arglist[i], "|") == 0) {
+            if (argc == 0 || n + 1 >= MAX_CMDS) {
+                fprintf(stderr, "syntax error near |\n");
+                return -1;
+            }
+            cmds[n].argv[argc] = NULL;
+            n++;
+            memset(&cmds[n], 0, sizeof(command_t));
+            argc = 0;
+        } else if (strcmp(arglist[i], "<") == 0 || strcmp(arglist[i], ">") == 0) {
+            if (arglist[i + 1] == NULL || is_operator(arglist[i + 1])) {
+                fprintf(stderr, "syntax error: missing file name after %s\n", arglist[i]);
+                return -1;
+            }
+            if (arglist[i][0] == '<') {
+                cmds[n].infile = arglist[i + 1];
+            } else {
+                cmds[n].outfile = arglist[i + 1];
+            }
+            i++;
+        } else {
+            cmds[n].argv[argc++] = arglist[i];
+        }
+    }
+
+    if (argc == 0) {
+        fprintf(stderr, "syntax error: missing command\n");
+        return -1;
+    }
+    cmds[n].argv[argc] = NULL;
+    return n + 1;
 }
