@@ -11,7 +11,7 @@
 #include <fcntl.h>
 
 #define MAX_LEN 512
-#define MAXARGS 10
+#define MAXARGS 30
 #define ARGLEN 30
 #define PROMPT "FCIT> "
 #define HISTORY_SIZE 20
@@ -33,6 +33,10 @@ void hist_print(void);
 char* hist_expand(const char* cmdline);
 void init_readline(void);
 int parse_pipeline(char** arglist, command_t* cmds);
-int execute_pipeline(command_t* cmds, int n);
+int execute_pipeline(command_t* cmds, int n, int background, const char* label);
+void run_line(char** arglist);
+void add_job(pid_t pid, const char* cmd);
+void print_jobs(void);
+void reap_jobs(void);
 
 #endif // SHELL_H

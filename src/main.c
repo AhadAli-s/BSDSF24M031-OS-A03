@@ -8,7 +8,13 @@ int main() {
 
     init_readline();
 
-    while ((cmdline = readline(PROMPT)) != NULL) {
+    while (1) {
+        reap_jobs();
+        cmdline = readline(PROMPT);
+        if (cmdline == NULL) {
+            break;
+        }
+
         if (cmdline[0] == '!') {
             char* expanded = hist_expand(cmdline);
             free(cmdline);
@@ -23,14 +29,7 @@ int main() {
             hist_add(cmdline);
             add_history(cmdline);
 
-            command_t cmds[MAX_CMDS];
-            int ncmds = parse_pipeline(arglist, cmds);
-
-            if (ncmds > 0) {
-                if (ncmds > 1 || handle_builtin(cmds[0].argv) == 0) {
-                    execute_pipeline(cmds, ncmds);
-                }
-            }
+            run_line(arglist);
 
             // Free the memory allocated by tokenize()
             for (int i = 0; arglist[i] != NULL; i++) {
