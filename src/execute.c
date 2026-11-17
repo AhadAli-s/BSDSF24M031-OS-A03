@@ -28,14 +28,14 @@ int execute_pipeline(command_t* cmds, int n, int background, const char* label) 
         if (i < n - 1) {
             if (pipe(fd) == -1) {
                 perror("pipe");
-                return -1;
+                return 1;
             }
         }
 
         pid_t pid = fork();
         if (pid == -1) {
             perror("fork failed");
-            return -1;
+            return 1;
         }
 
         if (pid == 0) { // Child process
@@ -68,7 +68,7 @@ int execute_pipeline(command_t* cmds, int n, int background, const char* label) 
             }
             execvp(cmds[i].argv[0], cmds[i].argv);
             perror("Command not found");
-            exit(1);
+            exit(127);
         }
 
         // Parent process
@@ -87,10 +87,18 @@ int execute_pipeline(command_t* cmds, int n, int background, const char* label) 
         return 0;
     }
 
+    int last_status = 0;
     for (int i = 0; i < n; i++) {
         waitpid(pids[i], &status, 0);
+        if (i == n - 1) {
+            if (WIFEXITED(status)) {
+                last_status = WEXITSTATUS(status);
+            } else {
+                last_status = 128 + WTERMSIG(status);
+            }
+        }
     }
-    return 0;
+    return last_status;
 }
 
 #define MAX_JOBS 64
@@ -147,8 +155,9 @@ void print_jobs(void) {
     }
 }
 
-void run_line(char** arglist) {
+int run_line(char** arglist) {
     int i = 0;
+    int last_status = 0;
 
     while (arglist[i] != NULL) {
         char* seg[MAXARGS + 1];
@@ -170,7 +179,7 @@ void run_line(char** arglist) {
         if (n == 0) {
             if (background) {
                 fprintf(stderr, "syntax error near &\n");
-                return;
+                return 1;
             }
             continue;
         }
@@ -178,10 +187,11 @@ void run_line(char** arglist) {
         command_t cmds[MAX_CMDS];
         int ncmds = parse_pipeline(seg, cmds);
         if (ncmds <= 0) {
-            return;
+            return 1;
         }
 
         if (ncmds == 1 && handle_builtin(cmds[0].argv) == 1) {
+            last_status = 0;
             continue;
         }
 
@@ -192,6 +202,7 @@ void run_line(char** arglist) {
             }
             strncat(label, seg[k], sizeof(label) - strlen(label) - 1);
         }
-        execute_pipeline(cmds, ncmds, background, label);
+        last_status = execute_pipeline(cmds, ncmds, background, label);
     }
+    return last_status;
 }
