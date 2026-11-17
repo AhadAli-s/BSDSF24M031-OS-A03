@@ -25,6 +25,14 @@ int main() {
             printf("%s\n", cmdline);
         }
 
+        if (is_if_line(cmdline)) {
+            hist_add(cmdline);
+            add_history(cmdline);
+            handle_if(cmdline);
+            free(cmdline);
+            continue;
+        }
+
         if ((arglist = tokenize(cmdline)) != NULL) {
             hist_add(cmdline);
             add_history(cmdline);
@@ -43,3 +51,4 @@ int main() {
     printf("\nShell exited.\n");
     return 0;
 }
+
