@@ -39,5 +39,10 @@ void print_jobs(void);
 void reap_jobs(void);
 int is_if_line(const char* line);
 void handle_if(const char* ifline);
+int is_assignment(const char* tok);
+void var_set(const char* name, const char* value);
+const char* var_get(const char* name);
+void var_print_all(void);
+void var_free_all(void);
 
 #endif // SHELL_H
