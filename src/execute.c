@@ -155,6 +155,50 @@ void print_jobs(void) {
     }
 }
 
+// Runs one command line piece (a pipeline) and returns its exit status,
+// or -1 after a syntax error
+static int run_segment(char** seg, int n, int background) {
+    char* owned[MAXARGS + 1];
+    int nowned = 0;
+    int status;
+
+    // Variable expansion: an argument that starts with $ is replaced
+    // by a new copy of the value of the variable with that name
+    for (int k = 0; k < n; k++) {
+        if (seg[k][0] == '$' && seg[k][1] != '\0') {
+            const char* value = var_get(seg[k] + 1);
+            if (value == NULL) {
+                value = getenv(seg[k] + 1);
+            }
+            seg[k] = strdup(value != NULL ? value : "");
+            owned[nowned++] = seg[k];
+        }
+    }
+
+    command_t cmds[MAX_CMDS];
+    int ncmds = parse_pipeline(seg, cmds);
+
+    if (ncmds <= 0) {
+        status = -1;
+    } else if (ncmds == 1 && handle_builtin(cmds[0].argv) == 1) {
+        status = 0;
+    } else {
+        char label[256] = "";
+        for (int k = 0; k < n; k++) {
+            if (k > 0) {
+                strncat(label, " ", sizeof(label) - strlen(label) - 1);
+            }
+            strncat(label, seg[k], sizeof(label) - strlen(label) - 1);
+        }
+        status = execute_pipeline(cmds, ncmds, background, label);
+    }
+
+    for (int k = 0; k < nowned; k++) {
+        free(owned[k]);
+    }
+    return status;
+}
+
 int run_line(char** arglist) {
     int i = 0;
     int last_status = 0;
@@ -184,25 +228,11 @@ int run_line(char** arglist) {
             continue;
         }
 
-        command_t cmds[MAX_CMDS];
-        int ncmds = parse_pipeline(seg, cmds);
-        if (ncmds <= 0) {
+        int status = run_segment(seg, n, background);
+        if (status < 0) {
             return 1;
         }
-
-        if (ncmds == 1 && handle_builtin(cmds[0].argv) == 1) {
-            last_status = 0;
-            continue;
-        }
-
-        char label[256] = "";
-        for (int k = 0; k < n; k++) {
-            if (k > 0) {
-                strncat(label, " ", sizeof(label) - strlen(label) - 1);
-            }
-            strncat(label, seg[k], sizeof(label) - strlen(label) - 1);
-        }
-        last_status = execute_pipeline(cmds, ncmds, background, label);
+        last_status = status;
     }
     return last_status;
 }

@@ -48,7 +48,7 @@ int main() {
         free(cmdline);
     }
 
+    var_free_all();
     printf("\nShell exited.\n");
     return 0;
 }
-

@@ -2,6 +2,10 @@
 #include <readline/readline.h>
 #include <readline/history.h>
 
+static int is_op_char(char c) {
+    return c == '<' || c == '>' || c == '|' || c == ';' || c == '&';
+}
+
 char** tokenize(char* cmdline) {
     // Edge case: empty command line
     if (cmdline == NULL || cmdline[0] == '\0' || cmdline[0] == '\n') {
@@ -15,7 +19,6 @@ char** tokenize(char* cmdline) {
     }
 
     char* cp = cmdline;
-    char* start;
     int len;
     int argnum = 0;
 
@@ -24,34 +27,33 @@ char** tokenize(char* cmdline) {
 
         if (*cp == '\0') break; // Line was only whitespace
 
-        if (*cp == '<' || *cp == '>' || *cp == '|' || *cp == ';' || *cp == '&') {
+        len = 0;
+        if (is_op_char(*cp)) {
             // Operator: a one-character token on its own
-            start = cp;
-            len = 1;
-            cp++;
-        } else if (*cp == '"' || *cp == '\'') {
-            // Quoted word: read up to the matching quote, quotes are left out
-            char quote = *cp++;
-            start = cp;
-            len = 0;
-            while (*cp != '\0' && *cp != quote) {
-                cp++;
-                len++;
-            }
-            if (*cp == quote) {
-                cp++;
-            }
+            arglist[argnum][len++] = *cp++;
         } else {
-            // Normal word: stops at whitespace or an operator character
-            start = cp;
-            len = 1;
-            while (*++cp != '\0' && !(*cp == ' ' || *cp == '\t' ||
-                   *cp == '<' || *cp == '>' || *cp == '|' ||
-                   *cp == ';' || *cp == '&')) {
-                len++;
+            // Word: ends at whitespace or an operator, quoted parts are copied
+            // without the quote characters, so NAME="two words" is one token
+            while (*cp != '\0' && *cp != ' ' && *cp != '\t' && !is_op_char(*cp)) {
+                if (*cp == '"' || *cp == '\'') {
+                    char quote = *cp++;
+                    while (*cp != '\0' && *cp != quote) {
+                        if (len < ARGLEN - 1) {
+                            arglist[argnum][len++] = *cp;
+                        }
+                        cp++;
+                    }
+                    if (*cp == quote) {
+                        cp++;
+                    }
+                } else {
+                    if (len < ARGLEN - 1) {
+                        arglist[argnum][len++] = *cp;
+                    }
+                    cp++;
+                }
             }
         }
-        strncpy(arglist[argnum], start, len);
         arglist[argnum][len] = '\0';
         argnum++;
     }
@@ -62,13 +64,32 @@ char** tokenize(char* cmdline) {
         return NULL;
     }
 
-    arglist[argnum] = NULL;
+    // Free the unused slots and mark the end of the list
+    for (int i = argnum; i < MAXARGS + 1; i++) {
+        free(arglist[i]);
+        arglist[i] = NULL;
+    }
     return arglist;
 }
 
 int handle_builtin(char** arglist) {
+    if (is_assignment(arglist[0])) {
+        if (arglist[1] != NULL) {
+            fprintf(stderr, "%s: unexpected arguments after assignment\n", arglist[0]);
+            return 1;
+        }
+        char* eq = strchr(arglist[0], '=');
+        char name[ARGLEN];
+        size_t name_len = eq - arglist[0];
+        memcpy(name, arglist[0], name_len);
+        name[name_len] = '\0';
+        var_set(name, eq + 1);
+        return 1;
+    }
+
     if (strcmp(arglist[0], "exit") == 0) {
         printf("Shell exited.\n");
+        var_free_all();
         exit(0);
     }
 
@@ -88,6 +109,8 @@ int handle_builtin(char** arglist) {
         printf("  help        Show this message\n");
         printf("  jobs        Show running background jobs\n");
         printf("  history     Show the command history\n");
+        printf("  set         Show all shell variables\n");
+        printf("  NAME=value  Create or change a shell variable\n");
         return 1;
     }
 
@@ -98,6 +121,11 @@ int handle_builtin(char** arglist) {
 
     if (strcmp(arglist[0], "history") == 0) {
         hist_print();
+        return 1;
+    }
+
+    if (strcmp(arglist[0], "set") == 0) {
+        var_print_all();
         return 1;
     }
 
@@ -182,7 +210,7 @@ int parse_pipeline(char** arglist, command_t* cmds) {
     return n + 1;
 }
 
-static char* builtin_names[] = {"exit", "cd", "help", "jobs", "history", NULL};
+static char* builtin_names[] = {"exit", "cd", "help", "jobs", "history", "set", NULL};
 
 static char* builtin_generator(const char* text, int state) {
     static int index;
